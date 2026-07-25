@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Exchange Rate Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #1c3a5e;
+    --blue: #2E5A88;
+    --accent: #4C8BF5;
+    --light: #7FB2F0;
+    --orange: #F2A65A;
+    --pink: #E85D75;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: linear-gradient(135deg, var(--navy), var(--blue)); color: white; padding: 32px 40px; }
+  header h1 { margin: 0 0 4px 0; font-size: 1.6rem; }
+  header p { margin: 0; opacity: 0.85; font-size: 0.95rem; }
+  .container { padding: 28px 40px 50px; max-width: 1100px; margin: 0 auto; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 30px; }
+  .kpi-card { background: var(--card); border-radius: 12px; padding: 18px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid var(--accent); }
+  .kpi-card .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi-card .value { font-size: 1.4rem; font-weight: 700; color: var(--navy); margin-top: 4px; }
+  .card { background: var(--card); border-radius: 12px; padding: 20px 22px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+  .card h3 { margin: 0 0 12px 0; font-size: 1rem; color: var(--navy); }
+  .note { font-size: 0.82rem; color: var(--muted); background: #eef2f7; border-radius: 8px; padding: 10px 14px; margin-bottom: 24px; }
+  footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 20px; }
+  @media (max-width: 800px) { header, .container { padding-left: 20px; padding-right: 20px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💱 Exchange Rate Tracker</h1>
+  <p>Live-updating currency data via automated daily API fetch · Python + GitHub Actions + Chart.js</p>
+</header>
+
+<div class="container">
+
+  <div class="note">
+    Data is fetched automatically every day from the <a href="https://frankfurter.dev" target="_blank">Frankfurter API</a> by a scheduled GitHub Action — no manual updates required. See <code>.github/workflows/daily_fetch.yml</code>.
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="card">
+    <h3>Exchange Rate Trend (base: USD)</h3>
+    <canvas id="trendChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h3>Latest Snapshot</h3>
+    <canvas id="snapshotChart"></canvas>
+  </div>
+
+</div>
+
+<footer>Portfolio sample project — automated data pipeline demonstration.</footer>
+
+<script>
+const DATA = {"dates": ["2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23"], "series": {"AUD": [1.5204, 1.5196, 1.5151, 1.5139, 1.5096, 1.5106, 1.5053, 1.5063, 1.5033, 1.5007, 1.4965, 1.4974, 1.4984, 1.5003, 1.5042, 1.5037, 1.4993, 1.4987, 1.496, 1.4918, 1.4929, 1.4937, 1.4958, 1.4994, 1.4941, 1.4888, 1.4831, 1.4813, 1.4808, 1.478, 1.4784, 1.4841, 1.4801], "EUR": [0.9172, 0.9137, 0.9104, 0.9114, 0.9078, 0.9063, 0.9052, 0.9067, 0.9051, 0.9053, 0.9022, 0.8985, 0.897, 0.8998, 0.9014, 0.9005, 0.8974, 0.8965, 0.8996, 0.8985, 0.8963, 0.8924, 0.8939, 0.8971, 0.8963, 0.8939, 0.8911, 0.8921, 0.889, 0.8857, 0.883, 0.8834, 0.8849], "GBP": [0.7909, 0.791, 0.7905, 0.7932, 0.7953, 0.7972, 0.7975, 0.7971, 0.7988, 0.8011, 0.8006, 0.8016, 0.8028, 0.8055, 0.8063, 0.8074, 0.8047, 0.8069, 0.8089, 0.8112, 0.8096, 0.8091, 0.8092, 0.8108, 0.8085, 0.8064, 0.804, 0.8019, 0.804, 0.8016, 0.7988, 0.7959, 0.7945], "JPY": [147.9869, 147.4319, 147.8241, 147.9167, 147.6642, 147.2811, 146.7564, 146.5334, 146.7722, 147.0475, 147.3561, 147.6736, 147.7868, 147.7557, 148.3474, 147.7745, 148.0964, 147.5931, 148.0299, 148.5792, 148.5611, 148.4042, 148.5453, 148.9947, 149.1559, 148.964, 148.8003, 148.503, 149.0947, 148.9059, 149.4471, 149.4808, 149.3208], "ZAR": [17.8077, 17.7755, 17.6723, 17.6058, 17.7201, 17.6284, 17.6617, 17.5912, 17.5799, 17.5978, 17.713, 17.7104, 17.8005, 17.79, 17.6846, 17.6329, 17.5532, 17.4926, 17.5045, 17.4842, 17.4064, 17.3495, 17.4582, 17.3512, 17.3254, 17.2215, 17.1016, 17.1914, 17.1588, 17.155, 17.2339, 17.1491, 17.2363]}, "latest_date": "2026-07-23", "latest": {"ZAR": 17.2363, "EUR": 0.8849, "GBP": 0.7945, "JPY": 149.3208, "AUD": 1.4801}};
+const palette = { ZAR: '#2E5A88', EUR: '#4C8BF5', GBP: '#7FB2F0', JPY: '#F2A65A', AUD: '#E85D75' };
+
+const kpiGrid = document.getElementById('kpi-grid');
+kpiGrid.innerHTML = `<div class="kpi-card"><div class="label">Latest Date</div><div class="value">${DATA.latest_date}</div></div>` +
+  Object.entries(DATA.latest).map(([cur, val]) =>
+    `<div class="kpi-card"><div class="label">USD → ${cur}</div><div class="value">${val}</div></div>`
+  ).join('');
+
+Chart.defaults.font.family = "'Segoe UI', sans-serif";
+
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: DATA.dates,
+    datasets: Object.entries(DATA.series).map(([cur, values]) => ({
+      label: cur,
+      data: values,
+      borderColor: palette[cur] || '#888',
+      backgroundColor: 'transparent',
+      tension: 0.25,
+      pointRadius: 0,
+      borderWidth: 2,
+    }))
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'bottom' } },
+    scales: { x: { ticks: { maxTicksLimit: 10 } } }
+  }
+});
+
+const latestEntries = Object.entries(DATA.latest);
+new Chart(document.getElementById('snapshotChart'), {
+  type: 'bar',
+  data: {
+    labels: latestEntries.map(e => e[0]),
+    datasets: [{
+      label: `Rate vs USD (${DATA.latest_date})`,
+      data: latestEntries.map(e => e[1]),
+      backgroundColor: latestEntries.map(e => palette[e[0]] || '#888'),
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } }
+  }
+});
+</script>
+
+</body>
+</html>
